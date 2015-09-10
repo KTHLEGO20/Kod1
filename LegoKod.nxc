@@ -1,0 +1,43 @@
+mutex moveMutex;
+
+task turn_search(){
+     while(true){
+                 Acquire(moveMutex);
+                 OnFwd(OUT_A, 30);
+                 OnRev(OUT_B, 30);
+                 Wait(1000);
+                 Release(moveMutex);
+     }
+}
+
+#define NEAR 20 // distance in CM
+
+task check_sonar(){
+    while(true){
+                while(SensorUS(IN_4)>NEAR){
+                Acquire(moveMutex);
+                OnFwd(OUT_AC, 40);
+                Release(moveMutex);}
+    Precedes(turn_search);
+                }
+     }
+}
+
+#define THRESHOLD 40 // light value
+
+task check_light(){
+    while(true){
+                if(Sensor(IN_3) > THRESHOLD){
+                                Acquire(moveMutex);
+                                OnRev(OUT_AC, 40);
+                                Wait(1000);
+                                Release(moveMutex);
+                                Precedes(turn_search);
+    }
+}
+
+task main(){
+     Precedes(check_light, check_sonar, turn_search);
+     SetSensorLowspeed(IN_4);    // Sonar-Sensor
+     SetSensorLight(IN_3);       // Light-Sensor
+}
