@@ -1,0 +1,130 @@
+#define DRIVE_DISTANCE_CALIB 2500
+#define TURN_DEGREE_CALIB 550
+
+#define SONAR_NEAR 20
+
+#define LEFT 0
+#define RIGHT 1
+
+#define LCD_LINE1 56
+#define LCD_LINE2 48
+#define LCD_LINE3 40
+#define LCD_LINE4 32
+#define LCD_LINE5 24
+#define LCD_LINE6 16
+#define LCD_LINE7 8
+#define LCD_LINE8 0
+
+mutex moveMutex;
+
+void halt() {
+	Acquire(moveMutex);
+	OnFwd(OUT_ABC, 0);
+	Release(moveMutex);
+}
+
+/* 
+int speed, -100 to 100
+ */
+void drive(int speed) {
+	Acquire(moveMutex);
+	if (speed >= 0) {
+		OnRev(OUT_ABC, speed);
+	} else {
+		OnFwd(OUT_ABC, -speed);
+	}
+	Release(moveMutex);
+}
+
+/* 
+int dir, LEFT or RIGHT (0 or 1)
+int speed, 0 to 100
+ */
+void turn(int dir, unsigned int speed) {
+	
+	if (speed <= 0) {
+		halt();
+		return;
+	}
+	Acquire(moveMutex);
+	if (dir == LEFT) {
+		/* Left */
+		OnFwd(OUT_A, speed);
+		OnFwd(OUT_B, 0);
+		OnRev(OUT_C, speed);
+	} else {
+		/* Right */
+		OnRev(OUT_A, speed);
+		OnFwd(OUT_B, 0);
+		OnFwd(OUT_C, speed);
+	}
+	Release(moveMutex);
+}
+
+/* 
+long distance, any positive long
+int speed, -100 to 100
+ */
+void driveDistance(unsigned long distance, int speed) {
+
+	if (speed == 0) {
+		halt();
+		return;
+	}
+	unsigned long dur = DRIVE_DISTANCE_CALIB*distance/abs(speed);
+
+	drive(speed);
+	Wait(dur);
+	halt();
+}
+
+/* 
+int degrees, any negative or positive int
+int speed, 0 to 100
+ */
+void turnDegrees(int degrees, unsigned int speed) {
+	if (speed <= 0) {
+		halt();
+		return;
+	}
+	unsigned long dur = TURN_DEGREE_CALIB*abs(degrees)/speed;
+	int dir;
+	if (degrees <= 0) {
+		dir = LEFT;
+	} else {
+		dir = RIGHT;
+	}
+	turn(dir, speed);
+	Wait(dur);
+	halt();
+}
+
+task searchTurn() {
+	while (true) {
+		turnDegrees(100, 100);
+		turnDegrees(-180, 100);
+		turnDegrees(90, 100);
+	}
+}
+
+task threeSixtyNoScope() {
+	turnDegrees(360, 100);
+}
+
+task listenSonar() {
+	Precedes(threeSixtyNoScope);
+	while (true) {
+		if (SensorUS(IN_4) <= SONAR_NEAR){
+			StopAllTasks();
+		}
+	}
+}
+
+task main() {
+	// turnDegrees(-90, 100);
+    Precedes(searchTurn);
+    // driveDistance(40, -100);
+    // turnDegrees(180, 100);
+    // driveDistance(40, 100);
+    SetSensorLowspeed(IN_4);    // Sonar-Sensor
+}
