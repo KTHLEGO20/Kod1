@@ -16,25 +16,21 @@
 #define LCD_LINE7 8
 #define LCD_LINE8 0
 
-mutex moveMutex;
+mutex motorMutex;
 
 void halt() {
-	Acquire(moveMutex);
 	OnFwd(OUT_ABC, 0);
-	Release(moveMutex);
 }
 
 /* 
 int speed, -100 to 100
  */
 void drive(int speed) {
-	Acquire(moveMutex);
 	if (speed >= 0) {
 		OnRev(OUT_ABC, speed);
 	} else {
 		OnFwd(OUT_ABC, -speed);
 	}
-	Release(moveMutex);
 }
 
 /* 
@@ -47,7 +43,6 @@ void turn(int dir, unsigned int speed) {
 		halt();
 		return;
 	}
-	Acquire(moveMutex);
 	if (dir == LEFT) {
 		/* Left */
 		OnFwd(OUT_A, speed);
@@ -59,7 +54,6 @@ void turn(int dir, unsigned int speed) {
 		OnFwd(OUT_B, 0);
 		OnFwd(OUT_C, speed);
 	}
-	Release(moveMutex);
 }
 
 /* 
@@ -98,36 +92,29 @@ void turnDegrees(int degrees, unsigned int speed) {
 	halt();
 }
 
-
-
 task threeSixtyNoScope() {
+	Acquire(motorMutex);
 	turnDegrees(360, 100);
+	Release(motorMutex);
 }
 
 task forward() {
 	while (true) {
+		Acquire(motorMutex);
 		drive(50);
-		
+		Release(motorMutex);
 	}
 }
-
-
 
 task listenSonar() {
 	while (true) {
 		TextOut(0, LCD_LINE1, NumToStr(SensorUS(IN_1)));
 		if (SensorUS(IN_1) < SONAR_NEAR){
 			TextOut(0, LCD_LINE1, "STOP at " + NumToStr(SensorUS(IN_1)));
-			halt();
-			StopAllTasks();
 			break;
 		}
 	}
 }
-
-
-
-
 
 task main() {
 	// turnDegrees(-90, 100);
@@ -143,7 +130,6 @@ task listenLightSensor() {
 	while (true) {
 		TextOut(0, LCD_LINE1, NumToStr(Sensor(IN_2)));
 		if (Sensor(IN_2) < LIGHT_THRESHOLD) { 
-
 			break;
 		}
 	}
@@ -152,14 +138,18 @@ task listenLightSensor() {
 task searchTurn() {
 	Follows(main);
 	while (true) {
+		Acquire(motorMutex);
 		turnDegrees(125, 100);
 		turnDegrees(-180, 100);
 		turnDegrees(90, 100);
+		Release(motorMutex);
 	}
 }
 
 task edgePanic() {
 	Follows(listenLightSensor);
+	Acquire(motorMutex);
 	driveDistance(40, -100);
 	turnDegrees(120, 100);
+	Release(motorMutex);
 }
