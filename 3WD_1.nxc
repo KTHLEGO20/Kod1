@@ -2,6 +2,7 @@
 #define TURN_DEGREE_CALIB 550
 
 #define SONAR_NEAR 20
+#define LIGHT_THRESHOLD 20
 
 #define LEFT 0
 #define RIGHT 1
@@ -66,13 +67,11 @@ long distance, any positive long
 int speed, -100 to 100
  */
 void driveDistance(unsigned long distance, int speed) {
-
 	if (speed == 0) {
 		halt();
 		return;
 	}
 	unsigned long dur = DRIVE_DISTANCE_CALIB*distance/abs(speed);
-
 	drive(speed);
 	Wait(dur);
 	halt();
@@ -99,32 +98,68 @@ void turnDegrees(int degrees, unsigned int speed) {
 	halt();
 }
 
-task searchTurn() {
-	while (true) {
-		turnDegrees(100, 100);
-		turnDegrees(-180, 100);
-		turnDegrees(90, 100);
-	}
-}
+
 
 task threeSixtyNoScope() {
 	turnDegrees(360, 100);
 }
 
-task listenSonar() {
-	Precedes(threeSixtyNoScope);
+task forward() {
 	while (true) {
-		if (SensorUS(IN_4) <= SONAR_NEAR){
+		drive(50);
+		
+	}
+}
+
+
+
+task listenSonar() {
+	while (true) {
+		TextOut(0, LCD_LINE1, NumToStr(SensorUS(IN_1)));
+		if (SensorUS(IN_1) < SONAR_NEAR){
+			TextOut(0, LCD_LINE1, "STOP at " + NumToStr(SensorUS(IN_1)));
+			halt();
 			StopAllTasks();
+			break;
 		}
 	}
 }
 
+
+
+
+
 task main() {
 	// turnDegrees(-90, 100);
-    Precedes(searchTurn);
     // driveDistance(40, -100);
     // turnDegrees(180, 100);
     // driveDistance(40, 100);
-    SetSensorLowspeed(IN_4);    // Sonar-Sensor
+    SetSensorLowspeed(IN_1);    // Sonar-Sensor
+    SetSensorLight(IN_2);       // Light-Sensor
+}
+
+task listenLightSensor() {
+	Follows(main);
+	while (true) {
+		TextOut(0, LCD_LINE1, NumToStr(Sensor(IN_2)));
+		if (Sensor(IN_2) < LIGHT_THRESHOLD) { 
+
+			break;
+		}
+	}
+}
+
+task searchTurn() {
+	Follows(main);
+	while (true) {
+		turnDegrees(125, 100);
+		turnDegrees(-180, 100);
+		turnDegrees(90, 100);
+	}
+}
+
+task edgePanic() {
+	Follows(listenLightSensor);
+	driveDistance(40, -100);
+	turnDegrees(120, 100);
 }
