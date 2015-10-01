@@ -1,11 +1,20 @@
 #define DRIVE_DISTANCE_CALIB 2500
 #define TURN_DEGREE_CALIB 550
 
+#define DRIVE_ACC 1
+#define DRIVE_DEACC 0
+
+#define TURN_ACC 1
+#define	TURN_DEACC 0
+
+#define DRIVE_MAX_M_PER_S 0.5
+
 #define SONAR_NEAR 20
 #define LIGHT_THRESHOLD 20
 
 #define LEFT 0
 #define RIGHT 1
+
 
 #define LCD_LINE1 56
 #define LCD_LINE2 48
@@ -18,6 +27,16 @@
 
 mutex motorMutex;
 
+int velToPower(float velocity) {
+	int power = velocity*(100/DRIVE_MAX_M_PER_S);
+	if (power > 100) {
+		power = 100;
+	} else if (power < -100) {
+		power = -100;
+	}
+	return power;
+}
+
 void halt() {
 	OnFwd(OUT_ABC, 0);
 }
@@ -25,11 +44,12 @@ void halt() {
 /* 
 int speed, -100 to 100
  */
-void drive(int speed) {
-	if (speed >= 0) {
-		OnRev(OUT_ABC, speed);
+void drive(float velocity) {
+	int power = velToPower(velocity);
+	if (power >= 0) {
+		OnRev(OUT_ABC, power);
 	} else {
-		OnFwd(OUT_ABC, -speed);
+		OnFwd(OUT_ABC, -power);
 	}
 }
 
@@ -37,23 +57,29 @@ void drive(int speed) {
 int dir, LEFT or RIGHT (0 or 1)
 int speed, 0 to 100
  */
-void turn(int dir, unsigned int speed) {
+void turn(int dir, unsigned int power) {
 	
-	if (speed <= 0) {
+	if (power <= 0) {
 		halt();
 		return;
 	}
 	if (dir == LEFT) {
 		/* Left */
-		OnFwd(OUT_A, speed);
+		OnFwd(OUT_A, power);
 		OnFwd(OUT_B, 0);
-		OnRev(OUT_C, speed);
+		OnRev(OUT_C, power);
 	} else {
 		/* Right */
-		OnRev(OUT_A, speed);
+		OnRev(OUT_A, power);
 		OnFwd(OUT_B, 0);
-		OnFwd(OUT_C, speed);
+		OnFwd(OUT_C, power);
 	}
+}
+
+float timeForManouver(unsigned long dist, int vel, int acc, int deacc) {
+
+	float t = -((4*vel)/(2*(acc+deacc))) + sqrt(((16*vel*vel)/((4*acc*acc)+(8*acc*deacc)+(4*deacc*deacc))) + ((2*dist)/(acc+deacc)));
+	return t;
 }
 
 /* 
@@ -98,13 +124,7 @@ task threeSixtyNoScope() {
 	Release(motorMutex);
 }
 
-task forward() {
-	while (true) {
-		Acquire(motorMutex);
-		drive(50);
-		Release(motorMutex);
-	}
-}
+
 
 task listenSonar() {
 	while (true) {
@@ -117,6 +137,7 @@ task listenSonar() {
 }
 
 task main() {
+	// TextOut(0, LCD_LINE2, NumToStr());
 	// turnDegrees(-90, 100);
     // driveDistance(40, -100);
     // turnDegrees(180, 100);
@@ -135,8 +156,17 @@ task listenLightSensor() {
 	}
 }
 
-task searchTurn() {
+task forward() {
 	Follows(main);
+	while (true) {
+		Acquire(motorMutex);
+		drive(100);
+		Release(motorMutex);
+	}
+}
+
+task searchTurn() {
+	// Follows(main);
 	while (true) {
 		Acquire(motorMutex);
 		turnDegrees(125, 100);
