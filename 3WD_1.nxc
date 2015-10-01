@@ -1,20 +1,18 @@
-#define DRIVE_DISTANCE_CALIB 2500
-#define TURN_DEGREE_CALIB 550
+// #define DRIVE_DISTANCE_CALIB 2500
+#define DRIVE_MAX_VEL 0.5 // meters per second
+#define DRIVE_ACC 1   // meters per second^2
+#define DRIVE_DEACC 0 // meters per second^2, although since the calculations are simplified, 0 is most accurate.
 
-#define DRIVE_ACC 1
-#define DRIVE_DEACC 0
-
-#define TURN_ACC 1
-#define	TURN_DEACC 0
-
-#define DRIVE_MAX_M_PER_S 0.5
+// #define TURN_DEGREE_CALIB 550
+#define TURN_MAX_RPS 1 // revolutions of the robot (not motors) per second
+#define TURN_ACC 1	   // revolutions per second^2 
+#define	TURN_DEACC 0   // revolutions per second^2, although since the calculations are simplified, 0 is most accurate
 
 #define SONAR_NEAR 20
 #define LIGHT_THRESHOLD 20
 
 #define LEFT 0
 #define RIGHT 1
-
 
 #define LCD_LINE1 56
 #define LCD_LINE2 48
@@ -27,8 +25,13 @@
 
 mutex motorMutex;
 
-int velToPower(float velocity) {
-	int power = velocity*(100/DRIVE_MAX_M_PER_S);
+
+/********************************
+	 MATH/PHYSICS FUNCTIONS
+********************************/
+
+int velToPower(float vel) {
+	int power = vel*(100/DRIVE_MAX_VEL);
 	if (power > 100) {
 		power = 100;
 	} else if (power < -100) {
@@ -37,15 +40,41 @@ int velToPower(float velocity) {
 	return power;
 }
 
+int rpsToPower(float rps) {
+	int power = abs(rps)*(100/TURN_MAX_RPS);
+	if (power > 100) {
+		power = 100;
+	}
+	return power;
+}
+
+unsigned long timeForDrive(unsigned long dist, float vel, float acc, float deacc) {
+	float sec = -((4*vel)/(2*(acc+deacc))) + sqrt(((16*vel*vel)/((4*acc*acc)+(8*acc*deacc)+(4*deacc*deacc))) + ((2*dist)/(acc+deacc)));
+	unsigned long ms = sec*1000;
+	return ms;
+}
+
+unsigned long timeForTurn(long degrees, float rps, float acc, float deacc) {
+	float revs = abs(degrees)/360;
+	float sec = -((4*rps)/(2*(acc+deacc))) + sqrt(((16*rps*rps)/((4*acc*acc)+(8*acc*deacc)+(4*deacc*deacc))) + ((2*revs)/(acc+deacc)));
+	unsigned long ms = sec*1000;
+	return ms;
+}
+
+
+/********************************
+	    SIMPLE MANOUVERS
+********************************/
+
 void halt() {
 	OnFwd(OUT_ABC, 0);
 }
 
 /* 
-int speed, -100 to 100
+float vel, meters per second
  */
-void drive(float velocity) {
-	int power = velToPower(velocity);
+void drive(float vel) {
+	int power = velToPower(vel);
 	if (power >= 0) {
 		OnRev(OUT_ABC, power);
 	} else {
@@ -53,12 +82,12 @@ void drive(float velocity) {
 	}
 }
 
-/* 
+/*
 int dir, LEFT or RIGHT (0 or 1)
-int speed, 0 to 100
+float rps, positive revolutions per second
  */
-void turn(int dir, unsigned int power) {
-	
+void turn(int dir, float rps) {
+	int power = rpsToPower(rps);
 	if (power <= 0) {
 		halt();
 		return;
@@ -76,55 +105,61 @@ void turn(int dir, unsigned int power) {
 	}
 }
 
-float timeForManouver(unsigned long dist, int vel, int acc, int deacc) {
 
-	float t = -((4*vel)/(2*(acc+deacc))) + sqrt(((16*vel*vel)/((4*acc*acc)+(8*acc*deacc)+(4*deacc*deacc))) + ((2*dist)/(acc+deacc)));
-	return t;
-}
+/********************************
+	 HIGH LEVEL MANOUVERS
+********************************/
 
 /* 
-long distance, any positive long
-int speed, -100 to 100
+Drives the specified distance at the specified speed.
+
+unsigned long distance, any positive long
+float vel, meters per second
  */
-void driveDistance(unsigned long distance, int speed) {
-	if (speed == 0) {
+void driveDistance(unsigned long distance, float vel) {
+	if (vel == 0) {
 		halt();
 		return;
 	}
-	unsigned long dur = DRIVE_DISTANCE_CALIB*distance/abs(speed);
-	drive(speed);
+	unsigned long dur = timeForDrive(distance, vel, DRIVE_ACC, DRIVE_DEACC);
+	drive(vel);
 	Wait(dur);
 	halt();
 }
 
 /* 
-int degrees, any negative or positive int
-int speed, 0 to 100
+Turns the specified number of degrees at the specified speed.
+
+long degrees, any negative or positive int
+float rps, revolutions per second
  */
-void turnDegrees(int degrees, unsigned int speed) {
-	if (speed <= 0) {
+void turnDegrees(long degrees, float rps) {
+	if (rps <= 0) {
 		halt();
 		return;
 	}
-	unsigned long dur = TURN_DEGREE_CALIB*abs(degrees)/speed;
+	unsigned long dur = timeForTurn(degrees, rps, TURN_ACC, TURN_DEACC);
 	int dir;
 	if (degrees <= 0) {
 		dir = LEFT;
 	} else {
 		dir = RIGHT;
 	}
-	turn(dir, speed);
+	turn(dir, rps);
 	Wait(dur);
 	halt();
 }
+
+
+/********************************
+			TASKS
+********************************/
 
 task threeSixtyNoScope() {
 	Acquire(motorMutex);
 	turnDegrees(360, 100);
 	Release(motorMutex);
 }
-
-
 
 task listenSonar() {
 	while (true) {
