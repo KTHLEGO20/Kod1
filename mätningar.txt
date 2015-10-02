@@ -1,0 +1,16 @@
+5 varv på 8 sek
+0.62 varv / sek
+
+rotation
+0.62 varv/sek på 0.8 sek
+0.775 varv/sek^2
+
+
+
+0.74 m på 2sek
+0.37 m/s
+
+0.37 m/s på 0.5s ?
+0.74 m/s^2
+
+

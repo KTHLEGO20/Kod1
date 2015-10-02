@@ -1,11 +1,11 @@
-// #define DRIVE_DISTANCE_CALIB 2500
-#define DRIVE_MAX_VEL 0.5 // meters per second
-#define DRIVE_ACC 1   // meters per second^2
+#define DRIVE_DISTANCE_CALIB 3
+#define DRIVE_MAX_VEL 0.37 // meters per second
+#define DRIVE_ACC 0.74  // meters per second^2
 #define DRIVE_DEACC 0 // meters per second^2, although since the calculations are simplified, 0 is most accurate.
 
-// #define TURN_DEGREE_CALIB 550
-#define TURN_MAX_RPS 1 // revolutions of the robot (not motors) per second
-#define TURN_ACC 1	   // revolutions per second^2 
+#define TURN_DEGREE_CALIB 4
+#define TURN_MAX_RPS 0.62 // revolutions of the robot (not motors) per second
+#define TURN_ACC 0.775   // revolutions per second^2 
 #define	TURN_DEACC 0   // revolutions per second^2, although since the calculations are simplified, 0 is most accurate
 
 #define SONAR_NEAR 20
@@ -30,6 +30,15 @@ mutex motorMutex;
 	 MATH/PHYSICS FUNCTIONS
 ********************************/
 
+long pow(long base, long exp) {
+	if (exp == 0) return 1;
+	long result = base;
+	for (long i = 1; i < exp; i++) {
+		result *= base;
+	}
+	return result;
+}
+
 int velToPower(float vel) {
 	int power = vel*(100/DRIVE_MAX_VEL);
 	if (power > 100) {
@@ -48,16 +57,21 @@ int rpsToPower(float rps) {
 	return power;
 }
 
-unsigned long timeForDrive(unsigned long dist, float vel, float acc, float deacc) {
-	float sec = -((4*vel)/(2*(acc+deacc))) + sqrt(((16*vel*vel)/((4*acc*acc)+(8*acc*deacc)+(4*deacc*deacc))) + ((2*dist)/(acc+deacc)));
+unsigned long timeForDrive(float dist, float vel, float acc, float deacc) {
+	// float sec = -((4*vel)/(2*(acc+deacc))) + sqrt(((16*vel*vel)/((4*acc*acc)+(8*acc*deacc)+(4*deacc*deacc))) + ((2*dist)/(acc+deacc)));
+	// float sec = -((4*vel)/(2*(acc+deacc))) + sqrt( pow(((4*vel)/(2*(acc+deacc))), 2) + ((2*dist)/(acc+deacc)) );
+	float sec = -(vel/acc) + sqrt( pow(vel/acc, 2) + ((2*dist)/acc));
 	unsigned long ms = sec*1000;
+	TextOut(0, LCD_LINE3, NumToStr(ms));
 	return ms;
 }
 
-unsigned long timeForTurn(long degrees, float rps, float acc, float deacc) {
+unsigned long timeForTurn(float degrees, float rps, float acc, float deacc) {
 	float revs = abs(degrees)/360;
-	float sec = -((4*rps)/(2*(acc+deacc))) + sqrt(((16*rps*rps)/((4*acc*acc)+(8*acc*deacc)+(4*deacc*deacc))) + ((2*revs)/(acc+deacc)));
-	unsigned long ms = sec*1000;
+	// float sec = -((4*rps)/(2*(acc+deacc))) + sqrt(((16*rps*rps)/((4*acc*acc)+(8*acc*deacc)+(4*deacc*deacc))) + ((2*revs)/(acc+deacc)));
+	float sec = -(rps/acc) + sqrt( pow(rps/acc, 2) + ((2*revs)/acc));
+	unsigned long ms = abs(sec*1000);
+	TextOut(0, LCD_LINE4, NumToStr(ms));
 	return ms;
 }
 
@@ -116,12 +130,12 @@ Drives the specified distance at the specified speed.
 unsigned long distance, any positive long
 float vel, meters per second
  */
-void driveDistance(unsigned long distance, float vel) {
+void driveDistance(float distance, float vel) {
 	if (vel == 0) {
 		halt();
 		return;
 	}
-	unsigned long dur = timeForDrive(distance, vel, DRIVE_ACC, DRIVE_DEACC);
+	unsigned long dur = timeForDrive(distance, vel, DRIVE_ACC, DRIVE_DEACC)*DRIVE_DISTANCE_CALIB;
 	drive(vel);
 	Wait(dur);
 	halt();
@@ -138,7 +152,7 @@ void turnDegrees(long degrees, float rps) {
 		halt();
 		return;
 	}
-	unsigned long dur = timeForTurn(degrees, rps, TURN_ACC, TURN_DEACC);
+	unsigned long dur = timeForTurn(degrees, rps, TURN_ACC, TURN_DEACC)*TURN_DEGREE_CALIB;
 	int dir;
 	if (degrees <= 0) {
 		dir = LEFT;
@@ -172,11 +186,6 @@ task listenSonar() {
 }
 
 task main() {
-	// TextOut(0, LCD_LINE2, NumToStr());
-	// turnDegrees(-90, 100);
-    // driveDistance(40, -100);
-    // turnDegrees(180, 100);
-    // driveDistance(40, 100);
     SetSensorLowspeed(IN_1);    // Sonar-Sensor
     SetSensorLight(IN_2);       // Light-Sensor
 }
@@ -191,8 +200,17 @@ task listenLightSensor() {
 	}
 }
 
+task spin() {
+	// Follows(main);
+	while (true) {
+		Acquire(motorMutex);
+		turnDegrees(360, 5);
+		Release(motorMutex);
+	}
+}
+
 task forward() {
-	Follows(main);
+	// Follows(main);
 	while (true) {
 		Acquire(motorMutex);
 		drive(100);
@@ -209,6 +227,20 @@ task searchTurn() {
 		turnDegrees(90, 100);
 		Release(motorMutex);
 	}
+}
+
+task testPow() {
+
+}
+
+task testAdvanced() {
+	Follows(main);
+	Acquire(motorMutex);
+	driveDistance(0.6, 0.5);
+	turnDegrees(90, 0.5);
+	turnDegrees(-40, 0.62);
+	driveDistance(0.3, -0.2);
+	Release(motorMutex);
 }
 
 task edgePanic() {
