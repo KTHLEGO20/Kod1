@@ -30,9 +30,9 @@ mutex motorMutex;
 	 MATH/PHYSICS FUNCTIONS
 ********************************/
 
-long pow(long base, long exp) {
+float pow(float base, long exp) {
 	if (exp == 0) return 1;
-	long result = base;
+	float result = base;
 	for (long i = 1; i < exp; i++) {
 		result *= base;
 	}
@@ -175,7 +175,13 @@ task threeSixtyNoScope() {
 	Release(motorMutex);
 }
 
+task main() {
+    SetSensorLowspeed(IN_1);    // Sonar-Sensor
+    SetSensorLight(IN_2);       // Light-Sensor
+}
+
 task listenSonar() {
+	Follows(main);
 	while (true) {
 		TextOut(0, LCD_LINE1, NumToStr(SensorUS(IN_1)));
 		if (SensorUS(IN_1) < SONAR_NEAR){
@@ -183,11 +189,6 @@ task listenSonar() {
 			break;
 		}
 	}
-}
-
-task main() {
-    SetSensorLowspeed(IN_1);    // Sonar-Sensor
-    SetSensorLight(IN_2);       // Light-Sensor
 }
 
 task listenLightSensor() {
@@ -227,10 +228,6 @@ task searchTurn() {
 		turnDegrees(90, 100);
 		Release(motorMutex);
 	}
-}
-
-task testPow() {
-
 }
 
 task testAdvanced() {
