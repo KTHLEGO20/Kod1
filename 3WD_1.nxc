@@ -1,4 +1,4 @@
-#define DRIVE_DISTANCE_CALIB 3
+#define DRIVE_DISTANCE_CALIB 1
 #define DRIVE_MAX_VEL 0.37 // meters per second
 #define DRIVE_ACC 0.74  // meters per second^2
 #define DRIVE_DEACC 0 // meters per second^2, although since the calculations are simplified, 0 is most accurate.
@@ -8,8 +8,8 @@
 #define TURN_ACC 0.775   // revolutions per second^2 
 #define	TURN_DEACC 0   // revolutions per second^2, although since the calculations are simplified, 0 is most accurate
 
-#define SONAR_NEAR 20
-#define LIGHT_THRESHOLD 20
+#define SONAR_NEAR 60
+#define LIGHT_THRESHOLD 25
 
 #define LEFT 0
 #define RIGHT 1
@@ -77,7 +77,7 @@ unsigned long timeForTurn(float degrees, float rps, float acc, float deacc) {
 
 
 /********************************
-	    SIMPLE MANOUVERS
+		SIMPLE MANOUVERS
 ********************************/
 
 void halt() {
@@ -169,24 +169,31 @@ void turnDegrees(long degrees, float rps) {
 			TASKS
 ********************************/
 
-task threeSixtyNoScope() {
-	Acquire(motorMutex);
-	turnDegrees(360, 100);
-	Release(motorMutex);
-}
-
 task main() {
-    SetSensorLowspeed(IN_1);    // Sonar-Sensor
-    SetSensorLight(IN_2);       // Light-Sensor
+	SetSensorLight(IN_2);       // Light-Sensor
+	TextOut(0, LCD_LINE1, "Start in 5");
+	Wait(1000);
+	TextOut(0, LCD_LINE1, "Start in 4");
+	Wait(1000);
+	TextOut(0, LCD_LINE1, "Start in 3");
+	Wait(1000);
+	TextOut(0, LCD_LINE1, "Start in 2");
+	Wait(1000);
+	TextOut(0, LCD_LINE1, "Start in 1");
+	Wait(1000);
+	ClearScreen();
+	TextOut(0, LCD_LINE1, "GO");
+	SetSensorLowspeed(IN_1);    // Sonar-Sensor
 }
 
 task listenSonar() {
 	Follows(main);
 	while (true) {
-		TextOut(0, LCD_LINE1, NumToStr(SensorUS(IN_1)));
-		if (SensorUS(IN_1) < SONAR_NEAR){
-			TextOut(0, LCD_LINE1, "STOP at " + NumToStr(SensorUS(IN_1)));
-			break;
+		while (SensorUS(IN_1) < SONAR_NEAR && Sensor(IN_2) > LIGHT_THRESHOLD){
+			// Forward/chase
+			Acquire(motorMutex);
+			drive(0.4);
+			Release(motorMutex);
 		}
 	}
 }
@@ -194,11 +201,75 @@ task listenSonar() {
 task listenLightSensor() {
 	Follows(main);
 	while (true) {
-		TextOut(0, LCD_LINE1, NumToStr(Sensor(IN_2)));
-		if (Sensor(IN_2) < LIGHT_THRESHOLD) { 
-			break;
+		while (Sensor(IN_2) < LIGHT_THRESHOLD) { 
+			// Reverse
+			Acquire(motorMutex);
+			driveDistance(0.1, -0.4);
+			Release(motorMutex);
 		}
 	}
+}
+
+task searchSpinRight() {
+	Follows(main);
+	int dir = RIGHT;
+	while (true) {
+		while (SensorUS(IN_1) > SONAR_NEAR && Sensor(IN_2) > LIGHT_THRESHOLD) {
+			Acquire(motorMutex);
+			turn(dir, 0.7);
+			Release(motorMutex);
+			if (SensorUS(IN_1) < SONAR_NEAR || Sensor(IN_2) < LIGHT_THRESHOLD) {
+				dir = (dir+1)%2;
+			}
+		}
+	}
+}
+
+task searchSpinLeft() {
+	// Follows(main);
+	int dir = LEFT;
+	while (true) {
+		while (SensorUS(IN_1) > SONAR_NEAR && Sensor(IN_2) > LIGHT_THRESHOLD) {
+			Acquire(motorMutex);
+			turn(dir, 0.7);
+			Release(motorMutex);
+			if (SensorUS(IN_1) < SONAR_NEAR || Sensor(IN_2) < LIGHT_THRESHOLD) {
+				dir = (dir+1)%2;
+			}
+		}
+	}
+}
+
+
+/********************************
+		UNUSED TASKS
+********************************/
+
+task edgePanic() {
+	// Follows(listenLightSensor);
+	Acquire(motorMutex);
+	driveDistance(40, -0.4);
+	// turnDegrees(120, 100);
+	Release(motorMutex);
+}
+
+task forward() {
+	// Follows(listenSonar);
+	while (true) {
+		Acquire(motorMutex);
+		drive(100);
+		Release(motorMutex);
+	}
+}
+
+task testAdvanced() {
+	// Follows(main);
+	Acquire(motorMutex);
+	driveDistance(0.1, 0.5);
+	turnDegrees(90, 0.5);
+	turnDegrees(-40, 0.62);
+	driveDistance(0.1, -0.2);
+	Release(motorMutex);
 }
 
 task spin() {
@@ -210,40 +281,8 @@ task spin() {
 	}
 }
 
-task forward() {
-	// Follows(main);
-	while (true) {
-		Acquire(motorMutex);
-		drive(100);
-		Release(motorMutex);
-	}
-}
-
-task searchTurn() {
-	// Follows(main);
-	while (true) {
-		Acquire(motorMutex);
-		turnDegrees(125, 100);
-		turnDegrees(-180, 100);
-		turnDegrees(90, 100);
-		Release(motorMutex);
-	}
-}
-
-task testAdvanced() {
-	Follows(main);
+task threeSixtyNoScope() {
 	Acquire(motorMutex);
-	driveDistance(0.6, 0.5);
-	turnDegrees(90, 0.5);
-	turnDegrees(-40, 0.62);
-	driveDistance(0.3, -0.2);
-	Release(motorMutex);
-}
-
-task edgePanic() {
-	Follows(listenLightSensor);
-	Acquire(motorMutex);
-	driveDistance(40, -100);
-	turnDegrees(120, 100);
+	turnDegrees(360, 100);
 	Release(motorMutex);
 }
